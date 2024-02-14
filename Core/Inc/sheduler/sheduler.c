@@ -8,7 +8,7 @@
 #include "sheduler.h"
 #include <stdlib.h>
 
-void sheduler_init(ROM_sheduler* sheduler, uint16_t pins){
+void sheduler_init(ROM_sheduler* sheduler){
 	sheduler->current_slave_in_ROM = 0;
 	sheduler->number_of_slaves = 0;
 	sheduler->number_of_available_operations = 0;
@@ -18,23 +18,9 @@ void sheduler_init(ROM_sheduler* sheduler, uint16_t pins){
 	sheduler->sheduler_state = INIT_STATE;
 	sheduler->is_ROM_available = 1;
 	sheduler->process_being_sent.operation_ID = 0x00;
-	sheduler->selected_pin = -1;
-	for(uint8_t i=0; i<MAX_SLAVE_NUM; i++)
-		sheduler->slave_pins[i] = pins[i];
 	priority_queue_init(&sheduler->operations);
 	priority_queue_init(&sheduler->waiting_slaves_queue);
 	stack_init(&sheduler->idle_slaves_stack);
-}
-
-void sheduler_select_slave(ROM_sheduler* sheduler, uint8_t port, uint16_t pin_number){
-	if(sheduler->selected_pin == MAX_SLAVE_NUM){
-		sheduler->selected_pin = -1;
-		sheduler->sheduler_state = SENDING_CODE_STATE;
-	}
-	sheduler->selected_pin++;
-	for(uint8_t i=0; i<MAX_SLAVE_NUM; i++)
-		HAL_GPIO_WritePin(GPIOB, sheduler->slave_pins[i].pins, GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(GPIOB, sheduler->slave_pins[sheduler->selected_pin], GPIO_PIN_SET);
 }
 
 void add_idle_slave(ROM_sheduler* sheduler, uint8_t slave_id, uint8_t slave_num){

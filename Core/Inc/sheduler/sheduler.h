@@ -74,13 +74,9 @@ typedef struct{
 	uint8_t	number_of_available_operations;
 	uint8_t sheduler_state;
 	operation_control_block process_being_sent;
-	// used to select a single slave for initializing, -1 when none is selected
-	uint8_t selected_pin;
-	// array used for selecting slaves from specific pins
-	uint16_t slave_pins[MAX_SLAVE_NUM];
 } ROM_sheduler;
 
-void sheduler_init(ROM_sheduler* sheduler, uint16_t pins);
+void sheduler_init(ROM_sheduler* sheduler);
 void add_idle_slave(ROM_sheduler* sheduler, uint8_t slave_id, uint8_t slave_num);
 void add_operation(ROM_sheduler* sheduler, operation_control_block new_operation);
 void give_slave_opcode(ROM_sheduler* sheduler, operation_control_block slave_operation, uint8_t slave_recieving_number);

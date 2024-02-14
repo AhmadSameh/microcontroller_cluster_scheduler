@@ -99,12 +99,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   Can_Filter_Config(&hcan, master);
   // select pins for initialization
-  uint16_t pins[MAX_SLAVE_NUM];
-  pins[0] = GPIO_PIN_7;
-  pins[1] = GPIO_PIN_8;
-  sheduler_init(&sheduler, pins);
+  sheduler_init(&sheduler);
   // create 2 dummy operations then add it to the operation priority queue
-  // this approach is used since the interface master is not ready yet
+  // this approach is used since the interface microcontroller is not ready
   operation_control_block operation1;
   operation1.operation_ID = 0x00;
   operation1.operation_length = 0x3724;
@@ -120,7 +117,9 @@ int main(void)
 
   // initiate can receive callback
   Can_InterruptCallBack(system_callback);
-  sheduler_select_slave(sheduler);
+  // select the first slave
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
@@ -318,16 +317,20 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void system_callback(){
+	// deselect any slave
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3 | GPIO_PIN_4, GPIO_PIN_RESET);
 	if(sheduler.sheduler_state == INIT_STATE){
 		// add slave to sheduler
 		add_idle_slave(&sheduler, RxHeader.StdId, sheduler.number_of_slaves);
-		// select the next slave
-		sheduler_select_slave(sheduler);
+		// if the next slave is the last one, change sheduler state
+		if(sheduler.number_of_slaves == MAX_SLAVE_NUM)
+			sheduler.sheduler_state = SENDING_CODE_STATE;
+		else
+			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
 	}
 	// slave was just reset and is now acknowledging it
 	if(sheduler.sheduler_state == SENDING_CODE_STATE){
-
-		sheduler.process_being_sent = sheduler.operation_blocks[priority_queue_peak(&sheduler.operations)];
+			sheduler.process_being_sent = sheduler.operation_blocks[priority_queue_peak(&sheduler.operations)];
 		uint8_t operation_id = priority_queue_peak(&sheduler.operations);
 		uint8_t slave_recieving_number = stack_peak(&sheduler.idle_slaves_stack);
 		uint8_t data[8];
@@ -350,44 +353,28 @@ void system_callback(){
 		return;
 	}
 	if(sheduler.sheduler_state == WAITING_ACK_STATE && Can_RxData[0] == RCVD_ACK){
-//		if(sheduler.number_of_idle_slaves == 1)
-//			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-//		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 		uint8_t operation_id = priority_queue_peak(&sheduler.operations);
 		uint8_t slave_recieving_number = stack_pop(&sheduler.idle_slaves_stack);
 		// give the slave the current operation
 		give_slave_opcode(&sheduler, sheduler.operation_blocks[operation_id], slave_recieving_number);
-//		if(sheduler.number_of_idle_slaves == 0)
-//			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 		// change state to sending code again if there are still operations to send and slaves to receive
 		// if slave received the opcode, the slave sends a RCV_ACK
 		if(sheduler.is_ROM_available){
-//			if(sheduler.current_slave_in_ROM == 1)
-//			 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 			// move the slave from the waiting queue
 			give_slave_access_to_ROM(&sheduler);
-//			if(sheduler.current_slave_in_ROM == 1)
-//						 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-//			if(sheduler.number_of_idle_slaves == 1 && sheduler.current_slave_in_ROM == 1)
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 			// send ROM signal to the slave to be in the ROM
 			uint8_t data[8];
 			data[0] = ROM_SIGNAL;
 			Can_Send(&hcan, sheduler.slave_blocks[sheduler.current_slave_in_ROM].slave_ID, 1, data, &Can_TxMailBox[0]);
 		}
-		if(sheduler.number_of_idle_slaves != 0 && sheduler.number_of_available_operations != 0){
-//			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+		if(sheduler.number_of_idle_slaves != 0 && sheduler.number_of_available_operations != 0)
 			sheduler.sheduler_state = SENDING_CODE_STATE;
-		}
 		else
 			sheduler.sheduler_state = WAITING_SIG_STATE;
 		return;
 	}
 	// if slave is finished accessing the ROM
 	if(Can_RxData[0] == MEM_FREE_ACK){
-//		if(sheduler.number_of_idle_slaves == 1)
-//			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-//			HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 		// set rom is available
 		sheduler.is_ROM_available = 1;
 		// change the slave's state to idle
