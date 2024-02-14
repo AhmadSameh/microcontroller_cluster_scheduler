@@ -1,0 +1,4 @@
+../Core/Inc/sheduler/stack/stack.c:10:6:stack_init	16	static
+../Core/Inc/sheduler/stack/stack.c:14:6:stack_push	16	static
+../Core/Inc/sheduler/stack/stack.c:23:9:stack_pop	16	static
+../Core/Inc/sheduler/stack/stack.c:32:9:stack_peak	16	static

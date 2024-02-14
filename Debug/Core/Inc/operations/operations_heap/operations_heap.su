@@ -1,0 +1,5 @@
+../Core/Inc/operations/operations_heap/operations_heap.c:17:25:operations_heap_init	16	static
+../Core/Inc/operations/operations_heap/operations_heap.c:25:6:add_opeation_to_heap	48	static
+../Core/Inc/operations/operations_heap/operations_heap.c:49:19:remove_from_operation_heap	16	static
+../Core/Inc/operations/operations_heap/operations_heap.c:56:13:heapify	40	static
+../Core/Inc/operations/operations_heap/operations_heap.c:76:13:swap_operations	24	static

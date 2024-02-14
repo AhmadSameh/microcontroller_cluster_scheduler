@@ -1,0 +1,5 @@
+../Core/Inc/sheduler/sheduler.c:11:6:sheduler_init	16	static
+../Core/Inc/sheduler/sheduler.c:27:6:add_idle_slave	16	static
+../Core/Inc/sheduler/sheduler.c:46:6:add_operation	24	static
+../Core/Inc/sheduler/sheduler.c:60:6:give_slave_opcode	32	static
+../Core/Inc/sheduler/sheduler.c:102:6:give_slave_access_to_ROM	16	static
