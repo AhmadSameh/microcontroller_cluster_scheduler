@@ -26,6 +26,8 @@ void sheduler_init(ROM_sheduler* sheduler){
  	priority_queue_init(&sheduler->operations);
 	priority_queue_init(&sheduler->waiting_slaves_queue);
 	stack_init(&sheduler->idle_slaves_stack);
+	for(uint8_t i=0; i<MAX_SLAVE_NUM; i++)
+		sheduler->slave_blocks[i].slave_ID = -1;
 }
 
 void add_idle_slave(ROM_sheduler* sheduler, uint8_t slave_id, uint8_t slave_num){
@@ -99,11 +101,6 @@ void give_slave_opcode(ROM_sheduler* sheduler, operation_control_block slave_ope
 #endif
 }
 
-// void add_waiting_slave(ROM_sheduler* sheduler, uint8_t acknowledged_opcode){
-// 	sheduler->number_of_idle_slaves--;
-// 	add_to_waiting_slaves(acknowledged_opcode);
-// }
-
 void give_slave_access_to_ROM(ROM_sheduler* sheduler){
 	// pop slave from its waiting queue and set the current_slave_in_ROM to it
 	sheduler->current_slave_in_ROM = priority_queue_pop(&sheduler->waiting_slaves_queue);
@@ -115,9 +112,19 @@ void give_slave_access_to_ROM(ROM_sheduler* sheduler){
 	sheduler->is_ROM_available = 0;
 }
 
-// void add_busy_slave(ROM_sheduler* sheduler, struct slaves* current_slave, uint8_t number_of_working_slaves){
-// 	// add_to_busy_slaves(current_slave, number_of_working_slaves);
-// 	sheduler->number_of_working_slaves++;
-// 	sheduler->is_ROM_available = 1;
-// 	sheduler->current_slave_in_ROM = 0;
-// }
+void set_slave_idle(ROM_sheduler* sheduler, uint8_t slave_num){
+	sheduler->slave_blocks[slave_num].slave_state = SLAVE_IDLE;
+	sheduler->slave_blocks[slave_num].current_opcode = 0x00;
+	stack_push(&sheduler->idle_slaves_stack, slave_num);
+}
+
+
+void set_slave_idle_by_id(ROM_sheduler* sheduler, uint32_t id){
+	for(uint8_t i=0; i<sheduler->number_of_slaves; i++){
+		if(sheduler->slave_blocks[i].slave_ID == id){
+			sheduler->slave_blocks[i].slave_state = SLAVE_IDLE;
+			sheduler->slave_blocks[i].current_opcode = 0x00;
+			return;
+		}
+	}
+}
