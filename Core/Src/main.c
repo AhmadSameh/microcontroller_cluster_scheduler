@@ -23,9 +23,6 @@
 /* USER CODE BEGIN Includes */
 #include "CanFilterConfig.h"
 #include "sheduler/sheduler.h"
-#include "operations/operations.h"
-#include "operations/operations_heap/operations_heap.h"
-#include "slaves/slaves.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,11 +42,14 @@
 
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan;
+
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+
+UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 ROM_sheduler sheduler;
-struct operations_heap* operations_heap;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -57,13 +57,119 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void system_callback(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void reset_all_select_pins(void){
+	for(uint8_t i=0; i<MAX_SLAVE_NUM; i++)
+		HAL_GPIO_WritePin(GPIOB, sheduler.slave_pins[i], GPIO_PIN_RESET);
+}
 
+void set_current_pin(void){
+	HAL_GPIO_WritePin(GPIOB, sheduler.slave_pins[sheduler.selected_pin], GPIO_PIN_SET);
+	sheduler.selected_pin++;
+}
+
+void add_slave_to_sheduler(void){
+	HAL_TIM_Base_Stop_IT(&htim2);
+	// deselect any slave
+	reset_all_select_pins();
+	// add slave to sheduler
+	add_idle_slave(&sheduler, RxHeader.StdId, sheduler.number_of_slaves);
+	// if the next slave is the last one, change sheduler state
+	if(sheduler.number_of_slaves == MAX_SLAVE_NUM || sheduler.selected_pin == MAX_SLAVE_NUM){
+//		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+		sheduler.sheduler_state = SENDING_CODE_STATE;
+		sheduler.selected_pin = -1;
+		HAL_TIM_Base_Start_IT(&htim3);
+		return;
+	}
+	set_current_pin();
+	HAL_TIM_Base_Start_IT(&htim2);
+}
+
+void send_opcode_to_slave(void){
+	// extract operation to be sent from the priority queue and the slave from the slave stack
+	sheduler.process_being_sent = sheduler.operation_blocks[priority_queue_peak(&sheduler.operations)];
+	uint8_t operation_id = priority_queue_peak(&sheduler.operations);
+	uint8_t slave_recieving_number = stack_peak(&sheduler.idle_slaves_stack);
+	// if the current operation needs more slaves than available, move on
+	if(sheduler.number_of_idle_slaves < sheduler.process_being_sent.number_of_working_slaves){
+		sheduler.sheduler_state = WAITING_SIG_STATE;
+		return;
+	}
+	// extract operation data to be sent
+	uint8_t data[8];
+	data[0] = (uint8_t)FRAME_SIGNAL;
+	data[1] = sheduler.operation_blocks[operation_id].operation_ID;
+	data[2] = (uint8_t)(sheduler.operation_blocks[operation_id].operation_length >> 8);
+	data[3] = (uint8_t)(sheduler.operation_blocks[operation_id].operation_length & 0xFF);
+	// set state to waiting ack then send to ensure interrupt works
+	Can_Send(&hcan, sheduler.slave_blocks[slave_recieving_number].slave_ID, 4, data, &Can_TxMailBox[0]);
+	sheduler.sheduler_state = WAITING_ACK_STATE;
+	return;
+}
+
+void give_rom_to_slave(void){
+	give_slave_access_to_ROM(&sheduler);
+	// send ROM signal to the slave to be in the ROM
+	uint8_t data[8];
+	data[0] = ROM_SIGNAL;
+	Can_Send(&hcan, sheduler.slave_blocks[sheduler.current_slave_in_ROM].slave_ID, 1, data, &Can_TxMailBox[0]);
+}
+
+void add_slave_to_waiting_queue(void){
+//		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+	uint8_t operation_id = priority_queue_peak(&sheduler.operations);
+	uint8_t slave_recieving_number = stack_pop(&sheduler.idle_slaves_stack);
+	// give the slave the current operation
+	give_slave_opcode(&sheduler, sheduler.operation_blocks[operation_id], slave_recieving_number);
+	// change state to sending code again if there are still operations to send and slaves to receive
+	// if slave received the opcode, the slave sends a RCV_ACK
+	if(sheduler.is_ROM_available){
+		// move the slave from the waiting queue
+		give_rom_to_slave();
+	}
+	if(sheduler.number_of_idle_slaves != 0 && sheduler.number_of_available_operations != 0)
+		sheduler.sheduler_state = SENDING_CODE_STATE;
+	return;
+}
+
+void set_slave_free(void){
+	// set rom is available
+	sheduler.is_ROM_available = 1;
+	// change the slave's state to idle
+	sheduler.slave_blocks[sheduler.current_slave_in_ROM].slave_state = SLAVE_IDLE;
+	// if there are more waiting slaves, give one access to ROM
+	if(sheduler.number_of_waiting_slaves != 0)
+		give_rom_to_slave();
+}
+
+void select_reset_slave(uint32_t id){
+	for(uint8_t i=0; i<sheduler.number_of_slaves; i++){
+		if(sheduler.slave_blocks[i].slave_ID == id){
+			sheduler.selected_pin = sheduler.slave_blocks[i].pin;
+			break;
+		}
+	}
+	reset_all_select_pins();
+	set_current_pin();
+}
+
+void set_slave_idle(uint32_t id){
+	for(uint8_t i=0; i<sheduler.number_of_slaves; i++){
+		if(sheduler.slave_blocks[i].slave_ID == id){
+			sheduler.slave_blocks[i].slave_state = SLAVE_IDLE;
+			sheduler.slave_blocks[i].current_opcode = 0x00;
+			return;
+		}
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -96,31 +202,30 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   Can_Filter_Config(&hcan, master);
+  // initiate can receive callback
+  Can_InterruptCallBack(system_callback);
   // select pins for initialization
   sheduler_init(&sheduler);
   // create 2 dummy operations then add it to the operation priority queue
   // this approach is used since the interface microcontroller is not ready
-  operation_control_block operation1;
-  operation1.operation_ID = 0x00;
-  operation1.operation_length = 0x3724;
-  operation1.number_of_working_slaves = 1;
-  operation1.operation_priority = 1;
-  operation_control_block operation2;
-  operation2.operation_ID = 0x01;
-  operation2.operation_length = 0x3724;
-  operation2.number_of_working_slaves = 1;
-  operation2.operation_priority = 1;
-  add_operation(&sheduler, operation1);
-  add_operation(&sheduler, operation2);
-
-  // initiate can receive callback
-  Can_InterruptCallBack(system_callback);
+  operation_control_block operation;
+  operation.operation_ID = 0x00;
+  operation.operation_length = 0x1900;
+  operation.number_of_working_slaves = 1;
+  operation.operation_priority = 1;
+  add_operation(&sheduler, operation);
+  add_operation(&sheduler, operation);
+  add_operation(&sheduler, operation);
+  add_operation(&sheduler, operation);
   // select the first slave
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-
+  reset_all_select_pins();
+  set_current_pin();
+  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -228,9 +333,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 1000;
+  htim2.Init.Prescaler = 7200-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 18000;
+  htim2.Init.Period = 2000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -251,6 +356,84 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 7200-1;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 500;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
 
 }
 
@@ -317,79 +500,55 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void system_callback(){
-	// deselect any slave
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3 | GPIO_PIN_4, GPIO_PIN_RESET);
+	// INIT state adds slaves to the slave control block
 	if(sheduler.sheduler_state == INIT_STATE){
-		// add slave to sheduler
-		add_idle_slave(&sheduler, RxHeader.StdId, sheduler.number_of_slaves);
-		// if the next slave is the last one, change sheduler state
-		if(sheduler.number_of_slaves == MAX_SLAVE_NUM)
-			sheduler.sheduler_state = SENDING_CODE_STATE;
-		else
-			HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
-	}
-	// slave was just reset and is now acknowledging it
-	if(sheduler.sheduler_state == SENDING_CODE_STATE){
-			sheduler.process_being_sent = sheduler.operation_blocks[priority_queue_peak(&sheduler.operations)];
-		uint8_t operation_id = priority_queue_peak(&sheduler.operations);
-		uint8_t slave_recieving_number = stack_peak(&sheduler.idle_slaves_stack);
-		uint8_t data[8];
-		// if the current operation needs more slaves than available, move on
-		if(sheduler.number_of_idle_slaves < sheduler.process_being_sent.number_of_working_slaves){
-			if(sheduler.process_being_sent.number_of_working_slaves > 1)
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-			sheduler.sheduler_state = WAITING_SIG_STATE;
-			return;
-		}
-		if(sheduler.number_of_idle_slaves == 1 && slave_recieving_number == 0)
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-		// extract operation data to be sent
-		data[0] = sheduler.operation_blocks[operation_id].operation_ID;
-		data[1] = (uint8_t)(sheduler.operation_blocks[operation_id].operation_length >> 8);
-		data[2] = (uint8_t)(sheduler.operation_blocks[operation_id].operation_length & 0xFF);
-		// set state to waiting ack then send to ensure interrupt works
-		sheduler.sheduler_state = WAITING_ACK_STATE;
-		Can_Send(&hcan, sheduler.slave_blocks[slave_recieving_number].slave_ID, 3, data, &Can_TxMailBox[0]);
+		add_slave_to_sheduler();
 		return;
 	}
+	// if slave was reset after initialization
+	if(Can_RxData[0] == START_SIGNAL){
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+		select_reset_slave(RxHeader.StdId);
+		return;
+	}
+	// if the reset slave sends ack
+	if(Can_RxData[0] == RESET_SIGNAL){
+		set_slave_idle(RxHeader.StdId);
+		return;
+	}
+	// send opcode to any slave
+	if(sheduler.sheduler_state == SENDING_CODE_STATE){
+		send_opcode_to_slave();
+		return;
+	}
+	// received ACK and now adding the slave to the waiting queue
 	if(sheduler.sheduler_state == WAITING_ACK_STATE && Can_RxData[0] == RCVD_ACK){
-		uint8_t operation_id = priority_queue_peak(&sheduler.operations);
-		uint8_t slave_recieving_number = stack_pop(&sheduler.idle_slaves_stack);
-		// give the slave the current operation
-		give_slave_opcode(&sheduler, sheduler.operation_blocks[operation_id], slave_recieving_number);
-		// change state to sending code again if there are still operations to send and slaves to receive
-		// if slave received the opcode, the slave sends a RCV_ACK
-		if(sheduler.is_ROM_available){
-			// move the slave from the waiting queue
-			give_slave_access_to_ROM(&sheduler);
-			// send ROM signal to the slave to be in the ROM
-			uint8_t data[8];
-			data[0] = ROM_SIGNAL;
-			Can_Send(&hcan, sheduler.slave_blocks[sheduler.current_slave_in_ROM].slave_ID, 1, data, &Can_TxMailBox[0]);
-		}
-		if(sheduler.number_of_idle_slaves != 0 && sheduler.number_of_available_operations != 0)
-			sheduler.sheduler_state = SENDING_CODE_STATE;
-		else
-			sheduler.sheduler_state = WAITING_SIG_STATE;
+		add_slave_to_waiting_queue();
 		return;
 	}
 	// if slave is finished accessing the ROM
 	if(Can_RxData[0] == MEM_FREE_ACK){
-		// set rom is available
-		sheduler.is_ROM_available = 1;
-		// change the slave's state to idle
-		sheduler.slave_blocks[sheduler.current_slave_in_ROM].slave_state = SLAVE_IDLE;
-		// if there are more waiting slaves, give one access to ROM
-		if(sheduler.number_of_waiting_slaves != 0){
-			give_slave_access_to_ROM(&sheduler);
-			if(sheduler.current_slave_in_ROM == 0)
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-			// send ROM signal to the slave to be in the ROM
-			uint8_t data[8];
-			data[0] = ROM_SIGNAL;
-			Can_Send(&hcan, sheduler.slave_blocks[sheduler.current_slave_in_ROM].slave_ID, 1, data, &Can_TxMailBox[0]);
-		}
+		set_slave_free();
+		return;
 	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+    if(htim->Instance == TIM2){
+    	if(sheduler.sheduler_state == INIT_STATE){
+    		reset_all_select_pins();
+    		set_current_pin();
+    		return;
+    	}
+    	return;
+    }
+    if(htim->Instance == TIM3){
+    	if(sheduler.sheduler_state == SENDING_CODE_STATE){
+    		send_opcode_to_slave();
+			return;
+    	}
+    	return;
+    }
 }
 
 /* USER CODE END 4 */

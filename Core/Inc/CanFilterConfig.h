@@ -7,7 +7,6 @@
 
 
 
-#include "../../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h"
 
 
 #ifndef CANFILTERCONFIG_H_
@@ -24,6 +23,7 @@ typedef void (*ptrVoidFunction)(void);
 
 extern CAN_TxHeaderTypeDef TxHeader;
 extern CAN_RxHeaderTypeDef RxHeader;
+
 extern uint32_t Can_TxMailBox[3];
 extern uint8_t	Can_RxData[8];
 extern uint8_t	slaves_id[numbers_slaves];
@@ -33,7 +33,7 @@ extern uint8_t	slaves_count;
 
 HAL_StatusTypeDef Can_Filter_Config(CAN_HandleTypeDef *hcan,uint8_t master_or_slave);
 HAL_StatusTypeDef Can_Send(CAN_HandleTypeDef *hcan,uint8_t ID, uint8_t DLC, uint8_t* data,uint32_t* Mailbox);
-void Can_InterruptCallBack(ptrVoidFunction callBackFunction);
+void			  Can_InterruptCallBack(ptrVoidFunction callBackFunction);
 
 
 

@@ -25,12 +25,9 @@ OBJCOPY_BIN :=
 # Every subdirectory with source files must be described here
 SUBDIRS := \
 Core/Inc \
-Core/Inc/operations \
-Core/Inc/operations/operations_heap \
 Core/Inc/sheduler/priority_queue \
 Core/Inc/sheduler \
 Core/Inc/sheduler/stack \
-Core/Inc/slaves \
 Core/Src \
 Core/Startup \
 Drivers/STM32F1xx_HAL_Driver/Src \

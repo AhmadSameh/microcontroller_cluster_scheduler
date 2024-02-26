@@ -24,14 +24,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h \
- ../Core/Inc/CanFilterConfig.h \
- ../Core/Inc/../../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h \
- ../Core/Inc/sheduler/sheduler.h ../Core/Inc/sheduler/stack/stack.h \
- ../Core/Inc/sheduler/priority_queue/priority_queue.h \
- ../Core/Inc/operations/operations.h \
- ../Core/Inc/operations/operations_heap/operations_heap.h \
- ../Core/Inc/operations/operations_heap/../operations.h \
- ../Core/Inc/slaves/slaves.h
+ ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
+ ../Core/Inc/CanFilterConfig.h ../Core/Inc/sheduler/sheduler.h \
+ ../Core/Inc/sheduler/stack/stack.h \
+ ../Core/Inc/sheduler/priority_queue/priority_queue.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
 ../Core/Inc/stm32f1xx_hal_conf.h:
@@ -58,12 +54,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h:
+../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h:
 ../Core/Inc/CanFilterConfig.h:
-../Core/Inc/../../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal.h:
 ../Core/Inc/sheduler/sheduler.h:
 ../Core/Inc/sheduler/stack/stack.h:
 ../Core/Inc/sheduler/priority_queue/priority_queue.h:
-../Core/Inc/operations/operations.h:
-../Core/Inc/operations/operations_heap/operations_heap.h:
-../Core/Inc/operations/operations_heap/../operations.h:
-../Core/Inc/slaves/slaves.h:

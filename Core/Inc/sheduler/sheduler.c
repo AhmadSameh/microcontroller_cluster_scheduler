@@ -18,7 +18,12 @@ void sheduler_init(ROM_sheduler* sheduler){
 	sheduler->sheduler_state = INIT_STATE;
 	sheduler->is_ROM_available = 1;
 	sheduler->process_being_sent.operation_ID = 0x00;
-	priority_queue_init(&sheduler->operations);
+	sheduler->selected_pin = 0;
+	sheduler->slave_pins[0] = 0x20;
+	sheduler->slave_pins[1] = 0x40;
+	sheduler->slave_pins[2] = 0x80;
+	sheduler->slave_pins[3] = 0x100;
+ 	priority_queue_init(&sheduler->operations);
 	priority_queue_init(&sheduler->waiting_slaves_queue);
 	stack_init(&sheduler->idle_slaves_stack);
 }
@@ -36,6 +41,7 @@ void add_idle_slave(ROM_sheduler* sheduler, uint8_t slave_id, uint8_t slave_num)
 	sheduler->slave_blocks[slave_num].slave_number = slave_num;
 	sheduler->slave_blocks[slave_num].slave_state = SLAVE_IDLE;
 	sheduler->slave_blocks[slave_num].current_opcode = 0x00;
+	sheduler->slave_blocks[slave_num].pin = sheduler->slave_pins[sheduler->selected_pin - 1];
 	// push slave number to free slave stack
 	stack_push(&sheduler->idle_slaves_stack, slave_num);
 }

@@ -20,10 +20,8 @@ uint32_t Can_TxMailBox[3];
 
 static ptrVoidFunction CAN_ISR_FUNCTION = NULL;
 
-HAL_StatusTypeDef Can_Filter_Config(CAN_HandleTypeDef *hcan,uint8_t master_or_slave)
-{
-	if(!master_or_slave)
-	{
+HAL_StatusTypeDef Can_Filter_Config(CAN_HandleTypeDef *hcan,uint8_t master_or_slave){
+	if(!master_or_slave){
 
 		CAN_FilterTypeDef	CANFilterConfig;
 		CANFilterConfig.FilterActivation = CAN_FILTER_ENABLE;
@@ -34,6 +32,7 @@ HAL_StatusTypeDef Can_Filter_Config(CAN_HandleTypeDef *hcan,uint8_t master_or_sl
 		CANFilterConfig.FilterMaskIdHigh = can_id<<5;
 		CANFilterConfig.FilterMaskIdLow = 0X0000;
 		CANFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+//		CANFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
 		CANFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
 		CANFilterConfig.SlaveStartFilterBank = 0;
 		if( HAL_CAN_ConfigFilter(hcan, &CANFilterConfig) != HAL_OK)
@@ -56,6 +55,7 @@ HAL_StatusTypeDef Can_Filter_Config(CAN_HandleTypeDef *hcan,uint8_t master_or_sl
 		CANFilterConfig.FilterMaskIdHigh = CAN_Master_Id<<5;
 		CANFilterConfig.FilterMaskIdLow = 0X0000;
 		CANFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+//		CANFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
 		CANFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
 		CANFilterConfig.SlaveStartFilterBank = 0;
 
@@ -78,16 +78,19 @@ HAL_StatusTypeDef Can_Send(CAN_HandleTypeDef *hcan,uint8_t ID, uint8_t DLC, uint
 
 	if ( HAL_CAN_AddTxMessage(hcan, &TxHeader, data, Mailbox) != HAL_OK)
 	{
+
 		return HAL_ERROR;
 	}
+
 	return HAL_OK;
 }
 
-void Can_InterruptCallBack(ptrVoidFunction callBackFunction){
-
+void Can_InterruptCallBack(ptrVoidFunction callBackFunction)
+{
 	if(callBackFunction != NULL)
+	{
 		CAN_ISR_FUNCTION = callBackFunction;
-
+	}
 }
 
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -95,5 +98,5 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, Can_RxData);
 
 	CAN_ISR_FUNCTION();
-}
 
+}

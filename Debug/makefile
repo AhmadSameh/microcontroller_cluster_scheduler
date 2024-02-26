@@ -12,12 +12,9 @@ RM := rm -rf
 -include Drivers/STM32F1xx_HAL_Driver/Src/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
--include Core/Inc/slaves/subdir.mk
 -include Core/Inc/sheduler/stack/subdir.mk
 -include Core/Inc/sheduler/priority_queue/subdir.mk
 -include Core/Inc/sheduler/subdir.mk
--include Core/Inc/operations/operations_heap/subdir.mk
--include Core/Inc/operations/subdir.mk
 -include Core/Inc/subdir.mk
 -include objects.mk
 

@@ -1,8 +1,0 @@
-../Core/Inc/slaves/slaves.c:18:6:slaves_init	4	static
-../Core/Inc/slaves/slaves.c:26:6:init_busy_slaves_array	16	static
-../Core/Inc/slaves/slaves.c:30:6:add_to_idle_slaves	24	static
-../Core/Inc/slaves/slaves.c:45:16:get_idle_slaves_list_head	4	static
-../Core/Inc/slaves/slaves.c:49:16:remove_from_idle_slaves	16	static
-../Core/Inc/slaves/slaves.c:56:6:add_to_waiting_slaves	24	static
-../Core/Inc/slaves/slaves.c:69:16:remove_from_waiting_slaves	16	static
-../Core/Inc/slaves/slaves.c:76:6:add_to_busy_slaves	16	static
