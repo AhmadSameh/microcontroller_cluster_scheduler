@@ -188,23 +188,21 @@ void send_status_to_interface(void){
 }
 
 void send_slave_ids_to_interface(void){
-	uint8_t temp = 0x41;
-	for(uint8_t i=0; i<3; i++){
-//		if(sheduler.slave_blocks[i].slave_ID == -1){
-//			continue;
-//		}
+	for(uint8_t i=0; i<MAX_SLAVE_NUM; i++){
+		if(sheduler.slave_blocks[i].slave_ID == -1){
+			continue;
+		}
 		uint8_t msg[10];
 		msg[0] = INTERFACE_ID_MSG;
-		msg[1] = temp;
-		msg[2] = i + 1;
+		msg[1] = sheduler.slave_blocks[i].slave_ID;
+		msg[2] = sheduler.slave_blocks[i].slave_number;
 		msg[3] = 0;
 		msg[4] = 0;
 		msg[5] = 0;
 		msg[6] = 0;
 		msg[7] = 0;
 		msg[8] = 0;
-		temp++;
-		if(i == 0 || i == 1) {
+		if(i < MAX_SLAVE_NUM - 1) {
 			msg[9] = INTERFACE_MORE_SIGNAL;
 		}
 		else {
@@ -250,11 +248,18 @@ void run_operation(uint8_t slave_id, uint8_t index, uint8_t length_high, uint8_t
 }
 
 void alert_slave_finished(uint8_t slave_number){
-	uint8_t msg[3];
+	uint8_t msg[10];
 	msg[0] = INTERFACE_DONE_SIGNAL;
 	msg[1] = slave_number;
-	msg[2] = INTERFACE_DONE_SIGNAL;
-	HAL_UART_Transmit(&huart2, (uint8_t*)msg, 3, 10);
+	msg[2] = 0;
+	msg[3] = 0;
+	msg[4] = 0;
+	msg[5] = 0;
+	msg[6] = 0;
+	msg[7] = 0;
+	msg[8] = 0;
+	msg[9] = 0;
+	HAL_UART_Transmit(&huart2, (uint8_t*)msg, 10, 10);
 }
 /* USER CODE END 0 */
 
