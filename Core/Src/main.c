@@ -249,7 +249,7 @@ void run_operation(uint8_t slave_id, uint8_t index, uint8_t length_high, uint8_t
 
 void alert_slave_finished(uint8_t slave_number){
 	uint8_t msg[10];
-	msg[0] = INTERFACE_DONE_SIGNAL;
+	msg[0] = INTERFACE_SLAVE_DONE;
 	msg[1] = slave_number;
 	msg[2] = 0;
 	msg[3] = 0;
